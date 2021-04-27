@@ -2,7 +2,7 @@
 
 using namespace std;
 
-//PFLocalization类的构造函数
+//PFLocalization
 PFLocalization::PFLocalization(map_type* mapdata,vector<log_data>& logdata,ros::NodeHandle node)
 {
 
@@ -46,7 +46,7 @@ PFLocalization::PFLocalization(map_type* mapdata,vector<log_data>& logdata,ros::
 	this->robot_ros_.header.frame_id = "map";
 }
 
-//PFLocalization distructor <<< but why?
+//PFLocalization distructor
 PFLocalization::~PFLocalization()
 {
     
@@ -129,9 +129,6 @@ void PFLocalization::MCLAlgorithm()
 			} */
 		}
 
-		// cout << "Reading (" << i << "/" << log_data_.size() << ") log data! ";
-		// cout << "Robot Position (X,Y,theta): (" << log_data_[i].x_robot << "," << log_data_[i].y_robot << "," << log_data_[i].theta_robot << ")" << std::endl;
-
 		particles_ = particles_temp;
 
 		if(log_data_[i].data_type == ODOM_DATA)	  //check if the data is odometry and not LiDAR
@@ -156,8 +153,7 @@ void PFLocalization::MCLAlgorithm()
 			for(int j = 0; j < numParticles_; j++)
 			{
 				particles_[j].weight /= total_weight;  //normalize the weight of each particle by deviding by the total weight
-				// avg_weight += particles_[j].weight/numParticles_;	
-				// cout << " Normalized weight is : " << particles_[j].weight << endl;
+				
 			}
 
 			float avg_weight = total_weight / numParticles_;
@@ -179,7 +175,7 @@ void PFLocalization::MCLAlgorithm()
 		// sleep(1);		 //1s
 
 		if(i <= 20)
-			usleep(300000);   //前20帧数据延迟大一些，更清晰的观察粒子的重采样情况
+			usleep(300000);  
 		else
 			usleep(40000); 
 	}
@@ -210,7 +206,7 @@ particle_state PFLocalization::SampleMotionModelOdometry(particle_state particle
 }
 
 
-//从标准正态分布中采样
+
 float PFLocalization::SampleStandardNormalDistribution(float var)
 {
 	float sum = 0;
@@ -222,7 +218,7 @@ float PFLocalization::SampleStandardNormalDistribution(float var)
 
 
 
-//计算高斯分布函数的概率
+
 float PFLocalization::ProbMeasurementHit(float zkt_star, float zkt)
 {
 	if (zkt < 0 || zkt > (lidar_range_max_ / resolution_))
@@ -236,7 +232,7 @@ float PFLocalization::ProbMeasurementHit(float zkt_star, float zkt)
 }
 
 
-//计算指数分布函数的概率
+
 float PFLocalization::ProbMeasurementShort(float zkt_star, float zkt)
 {
 	if(zkt < 0 || zkt < zkt_star)
@@ -251,7 +247,7 @@ float PFLocalization::ProbMeasurementShort(float zkt_star, float zkt)
 }
 
 
-//计算均匀分布函数的概率
+
 float PFLocalization::ProbMeasurementRandVal(float zkt)
 {
 	if(zkt < 0 || zkt >= (lidar_range_max_ / resolution_))
@@ -261,7 +257,7 @@ float PFLocalization::ProbMeasurementRandVal(float zkt)
 }
 
 
-//计算是否为测量最大值的概率
+
 float PFLocalization::ProbMeasurementMaxVal(float zkt)
 {
 	if(zkt == (lidar_range_max_ / resolution_))
@@ -271,47 +267,44 @@ float PFLocalization::ProbMeasurementMaxVal(float zkt)
 }
 
 
-//根据得分模型计算每个粒子的权重
+
 float PFLocalization::MeasurementScoreModel(particle_state particle)
 {
 	robot_state lidar_pose;
 	float laser_end_x,laser_end_y,score = 0, zkt = 0;
 
-    //计算激光雷达在map坐标系下的位姿
-	lidar_pose.x = particle.x + (lidar_offset_ * cos(particle.theta)) / resolution_;	//(单位：dm)
-	lidar_pose.y = particle.y + (lidar_offset_ * sin(particle.theta)) / resolution_;	//(单位：dm)
+    
+	lidar_pose.x = particle.x + (lidar_offset_ * cos(particle.theta)) / resolution_;	
+	lidar_pose.y = particle.y + (lidar_offset_ * sin(particle.theta)) / resolution_;
 	lidar_pose.theta = particle.theta;
 
-	//若雷达位姿在地图有效区域外,则终止此次计算,该粒子权重为0
+	
 	if(map_->prob[(int)lidar_pose.x][(int)lidar_pose.y] <= map_threshold_)   
 		return 0.0;  
 		
 	for (int i = 0; i < LASER_BEAM_NUM; i++)
 	{
-		zkt = measurement_.readings[i];		//第i个激光束的测距，单位：dm,从log文件读取时就已经转换成dm了
+		zkt = measurement_.readings[i];		
 		
-		//若超出设置的lidar最大有效值，则此光束无效
+		
 		if (zkt > (lidar_range_max_ / resolution_))	  
 			continue;
 
-		//计算第i个激光束在世界坐标系下的角度
+		
 		float step_theta = ((double)i / 180.0) * pi + lidar_pose.theta - pi/2.0;
 
-		laser_end_x = lidar_pose.x + zkt * cos(step_theta); 	//计算此激光束末端在map坐标系下的X坐标
-		laser_end_y = lidar_pose.y + zkt * sin(step_theta); 	//计算此激光束末端在map坐标系下的Y坐标
+		laser_end_x = lidar_pose.x + zkt * cos(step_theta); 	
+		laser_end_y = lidar_pose.y + zkt * sin(step_theta); 	
 
-		//若激光束末端在地图未知区域或无效区域，则跳过此次得分计算
+		
 		if(laser_end_x >= map_->max_x || laser_end_y >= map_->max_y || laser_end_x < map_->min_x || laser_end_y < map_->min_y 
 		  															   || map_->prob[(int)laser_end_x][(int)laser_end_y] < 0)
 		   continue;
-		
-		// if(map_->prob[(int)laser_end_x][(int)laser_end_y] >= 0 && map_->prob[(int)laser_end_x][(int)laser_end_y] < 0.15)
-		// 	score++;
 
-		score += map_->prob[(int)laser_end_x][(int)laser_end_y] < 0.15 ? 1 : 0; //累加，计算此帧lidar数据的得分
+		score += map_->prob[(int)laser_end_x][(int)laser_end_y] < 0.15 ? 1 : 0; 
 	}
 
-	return score;	//返回当前帧lidar数据的得分，用此来表示粒子权重
+	return score;	
 }
 
 
@@ -320,26 +313,25 @@ float PFLocalization::MeasurementScoreModel(particle_state particle)
 void PFLocalization::LowVarianceSampler()
 {
 	vector<particle_state> particles_temp = particles_;
-	float r = (rand() / (float)RAND_MAX) * (1.0 / (float)numParticles_); //初始化一个0~1之间的随机数
+	float r = (rand() / (float)RAND_MAX) * (1.0 / (float)numParticles_); 
 	float c = particles_[0].weight;
 	int i = 0;
 
 	for (int m = 0;m < numParticles_; m++)
 	{
-		float u = r + (float) m/ numParticles_; 		//移动随机数
+		float u = r + (float) m/ numParticles_; 		
 		while (u > c && i < numParticles_ - 1)
 		{ 
-			i++;										//移动到下一个粒子
+			i++;										
 			c += particles_temp[i].weight;	
 		}
-		particles_[m] = particles_temp[i]; 	 			//复制被选择的粒子
-		particles_[m].weight = 1.0 / numParticles_;		//重采样后粒子权重重置
-		// cout << " each weight is : " << particles_[m].weight << endl;
+		particles_[m] = particles_temp[i]; 	 			
+		particles_[m].weight = 1.0 / numParticles_;		
 	}	
 }
 
 int ctr;
-//计算机器人位姿，并发布状态
+
 void PFLocalization::CalRobotPose()
 {
 	float total_x = 0.0;
@@ -370,13 +362,13 @@ void PFLocalization::CalRobotPose()
 	geometry_msgs::Pose pose_ros;
 	geometry_msgs::Quaternion q;
 	q = tf::createQuaternionMsgFromRollPitchYaw(0,0,robot_pose_.theta);
-	pose_ros.position.x = 0.1 * robot_pose_.x;	//单位：dm -> m
+	pose_ros.position.x = 0.1 * robot_pose_.x;	
 	pose_ros.position.y = 0.1 * robot_pose_.y;
 	pose_ros.position.z = 0.0;
 	pose_ros.orientation = q;
 	robot_ros_.pose = pose_ros;
 
-	publish_pose_.publish(robot_ros_);	//发布机器人状态
+	publish_pose_.publish(robot_ros_);	
 
 
 	static tf::TransformBroadcaster br;
@@ -385,12 +377,11 @@ void PFLocalization::CalRobotPose()
   	tf::Quaternion tf_q;
 	tf_q.setRPY(0, 0, robot_pose_.theta);
   	transform.setRotation(tf_q);
- 	br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "map", "base_link"));	//发布base_link和map的tf关系
+ 	br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "map", "base_link"));	
 
 }
 
 
-//显示实时更新的粒子集状态
 void PFLocalization::Visualize()
 {
 	geometry_msgs::Pose pose_ros;
@@ -399,7 +390,7 @@ void PFLocalization::Visualize()
 	{
 		q = tf::createQuaternionMsgFromRollPitchYaw(0,0,particles_[i].theta);
 
-		pose_ros.position.x = 0.1 * particles_[i].x;	//单位：dm -> m
+		pose_ros.position.x = 0.1 * particles_[i].x;	
 		pose_ros.position.y = 0.1 * particles_[i].y;
 	
 		pose_ros.position.z = 0.0;
@@ -418,7 +409,7 @@ void PFLocalization::Visualize()
 
 	
 	cout << "Robot pose:  X: " << pose_ros.position.x<< ", Y: " << pose_ros.position.y << ", Theta: " << ", counter: " << ctr <<  endl;
-	publish_particlecloud_.publish(particles_ros_);	  //发布粒子集状态
+	publish_particlecloud_.publish(particles_ros_);	 
 }
 
 void PFLocalization::LidarOdomToPath()
