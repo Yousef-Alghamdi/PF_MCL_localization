@@ -1,4 +1,4 @@
-## 2.Build on ROS
+## Build on ROS
 + Clone this repository to your catkin workspace and catkin_make.
 ```
   cd ${YOUR_WORKSPACE_PATH}/src
@@ -11,4 +11,5 @@
 ```
 + Modify the **value** of the parameter **package_path_param** in line 16 of launch/mcl_localization.launch to the path where the pf_localization package is located.  E.g : **value="/home/catkin_ws/src/"**
 
-+ Run the Simulation : roslaunch pf_localization mcl_localization.launch
+## Run the Simulation : 
+roslaunch pf_localization mcl_localization.launch
