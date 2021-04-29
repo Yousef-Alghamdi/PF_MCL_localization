@@ -2,7 +2,9 @@
 
 using namespace std;
 
-//PFLocalization
+int ctr;
+
+//PFLocalization类的构造函数
 PFLocalization::PFLocalization(map_type* mapdata,vector<log_data>& logdata,ros::NodeHandle node)
 {
 
@@ -52,7 +54,6 @@ PFLocalization::~PFLocalization()
     
 }
 
-
 //Init Particles from data set function
 void PFLocalization::InitParticles()
 {
@@ -72,7 +73,7 @@ void PFLocalization::InitParticles()
 
 		particle_temp.theta = rand() / (float)RAND_MAX * 2 * pi;  //initialize theta Randomly
 
-		//make sure that the is betwwn -pi and pi 间
+		//make sure that the is between -pi and pi 
         if(particle_temp.theta > pi)
             particle_temp.theta -= 2 * pi;
         if(particle_temp.theta < -pi)
@@ -133,7 +134,7 @@ void PFLocalization::MCLAlgorithm()
 
 		if(log_data_[i].data_type == ODOM_DATA)	  //check if the data is odometry and not LiDAR
 		{
-			Visualize();	//Dispaly the osem in real time in RVIZ
+			Visualize();	//Dispaly the particle set in real time in RVIZ
 
 			continue;
 		}
@@ -145,7 +146,7 @@ void PFLocalization::MCLAlgorithm()
 			for(int j = 0; j < numParticles_; j++)
 			{
 				float weight = MeasurementScoreModel(particles_[j]);	  //calculate the weight of each particle
-				// cout << " each weight is : " << weight << endl;
+
 				particles_[j].weight = weight;
 				total_weight += particles_[j].weight;	  //sum of all particles weight
 			}
@@ -153,11 +154,10 @@ void PFLocalization::MCLAlgorithm()
 			for(int j = 0; j < numParticles_; j++)
 			{
 				particles_[j].weight /= total_weight;  //normalize the weight of each particle by deviding by the total weight
-				
+
 			}
 
 			float avg_weight = total_weight / numParticles_;
-			// cout << " The average weight is : " << avg_weight << endl;
 
 			LowVarianceSampler();		//Low Variance Resampling Algorithm
 
@@ -167,15 +167,14 @@ void PFLocalization::MCLAlgorithm()
 		}
 		else
 		{
-			cout << " ERROR：The Log Data Is Error!!!" << endl;
+			cout << " ERROR: The Log Data Is bad!!!" << endl;
 		}
 
 		Visualize();	//display on RVIZ
 
-		// sleep(1);		 //1s
 
 		if(i <= 20)
-			usleep(300000);  
+			usleep(300000);   // remove later
 		else
 			usleep(40000); 
 	}
@@ -206,7 +205,7 @@ particle_state PFLocalization::SampleMotionModelOdometry(particle_state particle
 }
 
 
-
+//从标准正态分布中采样
 float PFLocalization::SampleStandardNormalDistribution(float var)
 {
 	float sum = 0;
@@ -217,94 +216,44 @@ float PFLocalization::SampleStandardNormalDistribution(float var)
 }
 
 
-
-
-float PFLocalization::ProbMeasurementHit(float zkt_star, float zkt)
-{
-	if (zkt < 0 || zkt > (lidar_range_max_ / resolution_))
-		return 0;
-	else
-	{
-		float q;
-		q = (1.0 / sqrt(2*pi*sigmahit_*sigmahit_)) * exp((-1/2*((zkt - zkt_star)*(zkt - zkt_star)))/(sigmahit_*sigmahit_));
-		return q;	
-	}
-}
-
-
-
-float PFLocalization::ProbMeasurementShort(float zkt_star, float zkt)
-{
-	if(zkt < 0 || zkt < zkt_star)
-		return 0;
-	else
-	{
-		float q,eeta;
-		eeta = 1 / (1 - exp(-1.0 * lambdashort_ * zkt_star));
-		q = eeta * lambdashort_ * exp(-1.0 * lambdashort_ * zkt);
-		return q;
-	}
-}
-
-
-
-float PFLocalization::ProbMeasurementRandVal(float zkt)
-{
-	if(zkt < 0 || zkt >= (lidar_range_max_ / resolution_))
-		return 0;
-	else
-		return 1.0 / (lidar_range_max_ / resolution_);
-}
-
-
-
-float PFLocalization::ProbMeasurementMaxVal(float zkt)
-{
-	if(zkt == (lidar_range_max_ / resolution_))
-		return 1;
-	else
-		return 0;
-}
-
-
-
+//calculates the weightof each particle based on the score model
 float PFLocalization::MeasurementScoreModel(particle_state particle)
 {
 	robot_state lidar_pose;
 	float laser_end_x,laser_end_y,score = 0, zkt = 0;
 
-    
-	lidar_pose.x = particle.x + (lidar_offset_ * cos(particle.theta)) / resolution_;	
-	lidar_pose.y = particle.y + (lidar_offset_ * sin(particle.theta)) / resolution_;
+    //Calculate the pose of the LiDAR in the map
+	lidar_pose.x = particle.x + (lidar_offset_ * cos(particle.theta)) / resolution_;	//(in dm)
+	lidar_pose.y = particle.y + (lidar_offset_ * sin(particle.theta)) / resolution_;	//(in dm)
 	lidar_pose.theta = particle.theta;
 
-	
+	//if the LiDAR pose is outside the map effictive area. terminate and set weight to 0
 	if(map_->prob[(int)lidar_pose.x][(int)lidar_pose.y] <= map_threshold_)   
 		return 0.0;  
 		
 	for (int i = 0; i < LASER_BEAM_NUM; i++)
 	{
-		zkt = measurement_.readings[i];		
+		zkt = measurement_.readings[i];	
 		
-		
+		//if the LiDAR maximum efictive range is exceded the beam is invalid
 		if (zkt > (lidar_range_max_ / resolution_))	  
 			continue;
 
-		
+		//calculates the angle of the i-th beam
 		float step_theta = ((double)i / 180.0) * pi + lidar_pose.theta - pi/2.0;
 
-		laser_end_x = lidar_pose.x + zkt * cos(step_theta); 	
-		laser_end_y = lidar_pose.y + zkt * sin(step_theta); 	
+		laser_end_x = lidar_pose.x + zkt * cos(step_theta); 	//calculates the x coordinates of the end of the laser beam
+		laser_end_y = lidar_pose.y + zkt * sin(step_theta); 	//calculates the y coordinates of the end of the laser beam
 
-		
+		//if the la beam is in an unknown or invalid area of the map skip this cslculation
 		if(laser_end_x >= map_->max_x || laser_end_y >= map_->max_y || laser_end_x < map_->min_x || laser_end_y < map_->min_y 
 		  															   || map_->prob[(int)laser_end_x][(int)laser_end_y] < 0)
 		   continue;
 
-		score += map_->prob[(int)laser_end_x][(int)laser_end_y] < 0.15 ? 1 : 0; 
+		score += map_->prob[(int)laser_end_x][(int)laser_end_y] < 0.15 ? 1 : 0; //calculate and accumulate the score of the LiDAR data for this frame
 	}
 
-	return score;	
+	return score;	//represent the particle weight
 }
 
 
@@ -313,25 +262,31 @@ float PFLocalization::MeasurementScoreModel(particle_state particle)
 void PFLocalization::LowVarianceSampler()
 {
 	vector<particle_state> particles_temp = particles_;
-	float r = (rand() / (float)RAND_MAX) * (1.0 / (float)numParticles_); 
+	float r = (rand() / (float)RAND_MAX) * (1.0 / (float)numParticles_);  //init random number between 0~1
 	float c = particles_[0].weight;
 	int i = 0;
 
 	for (int m = 0;m < numParticles_; m++)
 	{
-		float u = r + (float) m/ numParticles_; 		
+		float u = r + (float) m/ numParticles_; 		//mobile random number
 		while (u > c && i < numParticles_ - 1)
 		{ 
-			i++;										
+			i++;										//move to the next particle
 			c += particles_temp[i].weight;	
 		}
-		particles_[m] = particles_temp[i]; 	 			
-		particles_[m].weight = 1.0 / numParticles_;		
+		particles_[m] = particles_temp[i]; 	 			//copy next particle
+		particles_[m].weight = 1.0 / numParticles_;		//reset particle weight after sampling 
+		
+/* 		if(ctr>=300 && ctr<=310 ){
+			particles_[m].x+=4.0;
+			particles_[m].y+=4.0;
+		} */
+		
 	}	
 }
 
-int ctr;
 
+//calculates the robot pose and puplish it
 void PFLocalization::CalRobotPose()
 {
 	float total_x = 0.0;
@@ -358,7 +313,7 @@ void PFLocalization::CalRobotPose()
 /* 	cout << "Robot pose:  X: " << robot_pose_.x << ", Y: " << robot_pose_.y << ", Theta: " << robot_pose_.theta << ", counter: " << ctr <<  endl;
  */	ctr++;
 
-	//显示机器人位姿
+
 	geometry_msgs::Pose pose_ros;
 	geometry_msgs::Quaternion q;
 	q = tf::createQuaternionMsgFromRollPitchYaw(0,0,robot_pose_.theta);
@@ -377,11 +332,11 @@ void PFLocalization::CalRobotPose()
   	tf::Quaternion tf_q;
 	tf_q.setRPY(0, 0, robot_pose_.theta);
   	transform.setRotation(tf_q);
- 	br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "map", "base_link"));	
+ 	br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "map", "base_link"));	//publish the tf relationship between base_link and map
 
 }
 
-
+//Dispaly the particle set in real time in RVIZ
 void PFLocalization::Visualize()
 {
 	geometry_msgs::Pose pose_ros;
@@ -390,7 +345,7 @@ void PFLocalization::Visualize()
 	{
 		q = tf::createQuaternionMsgFromRollPitchYaw(0,0,particles_[i].theta);
 
-		pose_ros.position.x = 0.1 * particles_[i].x;	
+		pose_ros.position.x = 0.1 * particles_[i].x;
 		pose_ros.position.y = 0.1 * particles_[i].y;
 	
 		pose_ros.position.z = 0.0;
@@ -422,12 +377,10 @@ void PFLocalization::LidarOdomToPath()
 	for(int i = 0; i < numParticles_; i++)
 	{
 		q = tf::createQuaternionMsgFromRollPitchYaw(0,0,particles_[i].theta);
-		pose_ros.position.x = 0.1 * particles_[i].x;	//单位：dm -> m
+		pose_ros.position.x = 0.1 * particles_[i].x;	
 		pose_ros.position.y = 0.1 * particles_[i].y;
 	}
 	pose_ros.position.z = 0.0;
-	//pose_ros.orientation = q;
-
 	geometry_msgs::PoseStamped data;
 
 	if(ctr>=350 && ctr<=360 || ctr>=430 && ctr<=440){
@@ -459,4 +412,5 @@ void PFLocalization::LidarOdomToPath()
 	lidar_path.poses.push_back(data);
 	lidar_path_pub.publish(lidar_path);
 }
+
 
