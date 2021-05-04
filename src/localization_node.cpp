@@ -36,7 +36,7 @@ int main(int argc, char** argv)
 
     PFLocalization pf_localization(map, logfile_data, n);    
     pf_localization.InitParticles();    //Init Particles from data set
-    sleep(5);		    
+    //sleep(5);		    
     pf_localization.MCLAlgorithm();     //Run MCLAlgorithm
 
     return 0;

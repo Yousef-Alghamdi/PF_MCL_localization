@@ -89,6 +89,7 @@ class PFLocalization
 		map_type* map_;
 		vector<log_data> log_data_;
 		vector<particle_state> particles_;
+		vector<particle_state> particles_ATTK;		
         geometry_msgs::PoseArray particles_ros_;
         geometry_msgs::PoseStamped robot_ros_;
 		nav_msgs::Odometry lidar_odom;

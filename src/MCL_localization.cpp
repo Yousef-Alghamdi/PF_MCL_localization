@@ -141,6 +141,12 @@ void PFLocalization::MCLAlgorithm()
 		else if(log_data_[i].data_type == LIDAR_DATA)	//if the frame data is LiDAR run this
 		{
 			measurement_.readings = log_data_[i].readings;   //store the LiDAR readings from the log file
+			for (int i = 0; i < LASER_BEAM_NUM; i++)
+			{
+				if(ctr>=270 && ctr<=290 || ctr>=350 && ctr<=370 || ctr>=430 && ctr<=450){
+				measurement_.readings[i]+=15.0;
+			}
+			}
 
 			double total_weight = 0;
 			for(int j = 0; j < numParticles_; j++)
@@ -174,9 +180,9 @@ void PFLocalization::MCLAlgorithm()
 
 
 		if(i <= 20)
-			usleep(300000);   // remove later
+			usleep(3000);   // remove later
 		else
-			usleep(40000); 
+			usleep(4000); 
 	}
 
 }
@@ -234,6 +240,9 @@ float PFLocalization::MeasurementScoreModel(particle_state particle)
 	for (int i = 0; i < LASER_BEAM_NUM; i++)
 	{
 		zkt = measurement_.readings[i];	
+/* 		if(ctr>=250 && ctr<=270 || ctr>=350 && ctr<=370 || ctr>=430 && ctr<=450){
+			zkt+=40.0;
+		} */
 		
 		//if the LiDAR maximum efictive range is exceded the beam is invalid
 		if (zkt > (lidar_range_max_ / resolution_))	  
@@ -351,13 +360,13 @@ void PFLocalization::Visualize()
 		pose_ros.position.z = 0.0;
 		pose_ros.orientation = q;
 
-		if(ctr>=350 && ctr<=360 || ctr>=430 && ctr<=440){
+/* 		if(ctr>=350 && ctr<=360 || ctr>=430 && ctr<=440){
 		pose_ros.position.x+=4.0;
 		pose_ros.position.y+=4.0;
 		}else if(ctr>=390 && ctr<=400 ){
 		pose_ros.position.x-=4.0;
 		pose_ros.position.y-=4.0;
-		}
+		} */
 	
 		particles_ros_.poses[i] = pose_ros;
 	}
@@ -383,16 +392,16 @@ void PFLocalization::LidarOdomToPath()
 	pose_ros.position.z = 0.0;
 	geometry_msgs::PoseStamped data;
 
-	if(ctr>=350 && ctr<=360 || ctr>=430 && ctr<=440){
+/* 	if(ctr>=350 && ctr<=360 || ctr>=430 && ctr<=440){
 	data.pose.position.x=pose_ros.position.x+4.0;
 	data.pose.position.y=pose_ros.position.y+4.0;
 	}else if(ctr>=390 && ctr<=400){
 	data.pose.position.x=pose_ros.position.x-4.0;
 	data.pose.position.y=pose_ros.position.y-4.0;
-	}else{
+	}else{ */
 	data.pose.position.x=pose_ros.position.x;
 	data.pose.position.y=pose_ros.position.y;
-	}
+	//}
 	data.pose.position.z=pose_ros.position.z;
 	data.pose.orientation.x=q.x;
 	data.pose.orientation.y=q.y;
@@ -412,5 +421,3 @@ void PFLocalization::LidarOdomToPath()
 	lidar_path.poses.push_back(data);
 	lidar_path_pub.publish(lidar_path);
 }
-
-
